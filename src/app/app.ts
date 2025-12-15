@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { interval, scan, switchMap, takeWhile } from 'rxjs';
+import { interval, of, scan, startWith, switchMap, takeWhile } from 'rxjs';
 import { WakeLockService } from './wake-lock.service';
 
 @Component({
@@ -8,26 +8,35 @@ import { WakeLockService } from './wake-lock.service';
   templateUrl: './app.html',
   styleUrl: './app.css',
   host: {
-    '(document:keydown.space)': 'togglePaused($event)',
     '(click)': 'togglePaused($event)',
+    '(document:keydown.space)': 'togglePaused($event)',
+    '(document:keydown.arrowdown)': 'decrementTimeLeft()',
+    '(document:keydown.arrowup)': 'incrementTimeLeft()',
   },
 })
 export class App {
   private readonly wakeLock = inject(WakeLockService);
-  private readonly totalSeconds = 45 * 60;
-
+  readonly totalSeconds = signal(45 * 60);
   readonly paused = signal(false);
 
-  readonly time = toSignal(
-    toObservable(this.paused).pipe(
-      switchMap((paused) => (paused ? [] : interval(1000))),
-      scan((seconds) => seconds - 1, this.totalSeconds + 1),
-      takeWhile((seconds) => seconds >= 0)
+  private totalSeconds$ = toObservable(this.totalSeconds);
+  private paused$ = toObservable(this.paused);
+
+  readonly secondsLeft = toSignal(
+    this.totalSeconds$.pipe(
+      switchMap((totalSeconds) =>
+        this.paused$.pipe(
+          switchMap((paused) => (paused ? of([]) : interval(1000))),
+          scan((seconds) => seconds - 1, totalSeconds),
+          startWith(totalSeconds),
+          takeWhile((seconds) => seconds >= 0)
+        )
+      )
     ),
-    { initialValue: this.totalSeconds }
+    { initialValue: this.totalSeconds() }
   );
 
-  readonly formattedTime = computed(() => this.formatTime(this.time()));
+  readonly formattedTimeLeft = computed(() => this.formatTime(this.secondsLeft()));
 
   readonly onPausedChange = effect(() => {
     this.paused() ? this.wakeLock.disable() : this.wakeLock.enable();
@@ -36,6 +45,14 @@ export class App {
   togglePaused(event: Event) {
     event.preventDefault();
     this.paused.update((p) => !p);
+  }
+
+  incrementTimeLeft() {
+    this.totalSeconds.set(this.secondsLeft() + 10);
+  }
+
+  decrementTimeLeft() {
+    this.totalSeconds.set(this.secondsLeft() - 10);
   }
 
   private formatTime(seconds: number): string {
