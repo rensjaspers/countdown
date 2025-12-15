@@ -1,7 +1,10 @@
 <div
-  class="h-screen w-screen bg-black text-gray-800 flex justify-center items-center overflow-hidden"
+  class="h-screen w-screen bg-black text-gray-800 flex justify-center items-center overflow-hidden cursor-pointer"
 >
-  <span class="font-mono text-[20vw] leading-none select-none tabular-nums">
+  <span
+    class="font-mono text-[20vw] leading-none select-none tabular-nums"
+    [class.animate-pulse]="paused()"
+  >
     {{ formattedTime() }}
   </span>
 </div>
